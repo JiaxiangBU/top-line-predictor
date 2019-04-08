@@ -1,0 +1,800 @@
+---
+title: "数据反馈日志"
+author: "李家翔"
+date: "`r Sys.Date()`"
+bibliography: add.bib
+output: 
+  html_document:
+    code_folding: hide
+    df_print: default
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_float: yes
+link-citations: true
+---
+
+```{r warning = FALSE, message = FALSE, cache=T}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, cache=T)
+library(tidyverse)
+library(readxl)
+library(lubridate)
+library(data.table)
+library(formattable)
+library(broom)
+today_prefix <- 
+    today() %>% 
+    str_remove_all('-') %>% 
+    str_sub(3,str_length(.))
+finance_01 <- 
+    read_excel('180706_wu_finance.xlsx') %>% 
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )   
+    )
+```
+ 
+# 金融股票无法加入
+
+```{r eval=F}
+finance_01_add_bank <- 
+    read_excel('181721_wu_bank.xlsx') %>% 
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )   
+    )
+finance_01_add_insurance <- 
+    read_excel('181721_wu_insurance.xlsx') %>% 
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )   
+    )
+finance_01_add_security <- 
+    read_excel('181721_wu_security.xlsx') %>% 
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )   
+    )
+```
+
+```{r}
+required_list <- c(
+    'revenue','cogs','t_ca'
+    ,'n_income','t_sh_equity'
+    ,'t_revenue','t_assets'
+    ,'t_cl','diluted_eps'
+    ,'n_change_in_cash'
+)
+```
+
+```{r}
+required_list %>% intersect(finance_01_add_bank %>% names())
+required_list %>% setdiff(finance_01_add_insurance %>% names())
+required_list %>% setdiff(finance_01_add_security %>% names())
+```
+
+这里加入了银行、保险和证券，但是这些变量在金融股票的信息中找不到。
+
+# 使用季度营收增长率为因变量
+
+```{r}
+finance_g_02 <- 
+    finance_01 %>% 
+    rename_all(
+          funs(
+            str_remove_all(., "\\p{Han}{1,}") %>% 
+            str_remove_all(., "_$") %>% 
+            str_to_lower()
+          )   
+    ) %>% 
+    group_by(ticker_symbol) %>% 
+    mutate(revenue_raw = revenue) %>% 
+    mutate(revenue = revenue/lag(revenue)-1)
+finance_g_wide <- 
+    finance_g_02 %>% 
+    # select(year,month,revenue) %>% 
+    # filter(year == 2009,month==3)
+    select(ticker_symbol,year,month,revenue) %>% 
+    # group_by(ticker_symbol) %>% 
+    na.omit() %>% 
+    spread(ticker_symbol,revenue) %>% 
+    select_if(~sum(is.na(.))==0)  
+    # 有空值的列剔除，后期可以fill替换。
+bad <- fread('bad.csv')
+data_500_g <- 
+    finance_g_02 %>% 
+    semi_join(bad,by = c('ticker_symbol'='bad_predict'))
+```
+
+## pca_g
+
+```{r}
+pca_g_model_g <- 
+    finance_g_wide %>% 
+    select(-year,-month) %>% 
+    scale(center = TRUE, scale = TRUE) %>% 
+    as_tibble() %>% 
+    select_if(~sum(is.na(.))==0) %>% 
+    prcomp()
+pca_g_output <- 
+predict(pca_g_model_g) %>% 
+    as_tibble() %>% 
+    select(1) %>% 
+    bind_cols(finance_g_wide %>% select(year,month)) %>% 
+    write_csv(paste(today_prefix,'ljx_pca_g.csv',sep='_'))
+```
+    
+    Error in svd(x, nu = 0, nv = k) : infinite or missing values in 'x'
+
+当进行`scale`时，产生了`NA`。
+
+## 500只特殊股票
+
+```{r}
+data_500_g_edited <- 
+data_500_g %>% 
+    mutate(
+        roe = n_income/t_sh_equity,
+        pm = n_income/t_revenue,
+        ato = t_revenue/t_assets,
+        lvrg = t_assets/t_sh_equity
+    ) %>% 
+    select(ticker_symbol,end_date,year,month,revenue,cogs,
+           t_ca,roe,pm,ato,lvrg
+           ) %>% 
+    na.omit()
+```
+
+```{r}
+train_test_data_g_g <- 
+    data_500_g_edited %>% 
+    left_join(pca_g_output, by = c('year','month')) %>% 
+    mutate(revenue_y = revenue) %>% 
+    mutate_at(vars(revenue:PC1),lag) %>% 
+    # summarise(mean(revenue<0,na.rm = T))
+    # mutate_at(vars(revenue,cogs,t_ca,revenue_y),
+    #           .funs = ~log(.+1)) %>%
+    mutate_at(vars(cogs,t_ca),
+              .funs = ~log(.+1)) %>%
+    filter_all(all_vars(!is.na(.))) %>%
+    filter_all(all_vars(!is.nan(.))) %>%
+    filter_all(all_vars(!is.infinite(.))) %>% 
+    ungroup()
+```
+
+```{r}
+test_data_g <- 
+    train_test_data_g_g %>% 
+    # distinct(year,month)
+    filter(year == 2018,month == 3)
+train_data_g <- 
+    train_test_data_g_g %>% 
+    setdiff(test_data_g)
+```
+
+```{r}
+train_data_g %>% 
+    names()
+```
+
+
+```{r}
+model_g_raw <- 
+train_data_g %>% 
+    group_by(ticker_symbol) %>% 
+    filter(n() > 10) %>% 
+     
+    nest() %>% 
+    mutate(mod = map(.x = data, 
+                     .f = ~lm(revenue_y ~ revenue + cogs +
+                                  t_ca + roe + pm + ato + 
+                                  lvrg + PC1+month,data=.x)
+                     # .f = ~glm(revenue_y ~ cogs + PC1,
+                     #          data = .x,
+                     #          family=Gamma(link="log"))
+                     )) %>% 
+    left_join(
+        test_data_g %>% 
+            group_by(ticker_symbol) %>% 
+            nest() %>% 
+            rename(test = data)
+        ,by="ticker_symbol"
+    ) %>% 
+    mutate(pred = map2(.x = mod,
+                       .y = test,
+                       .f = ~predict(object = .x,newdata = .y)))
+model_g_sum_table <- 
+model_g_raw %>% 
+    select(ticker_symbol,mod) %>% 
+    mutate(tidy = map(mod,tidy)) %>% 
+    select(ticker_symbol,tidy) %>% 
+    unnest() %>% 
+    group_by(term) %>% 
+    summarise(beta_bar = mean(estimate),beta_sd = sd(estimate),
+              pvlu_bar = mean(p.value), pvlu_sd = sd(p.value)) %>% 
+    mutate_if(is.double,accounting) %>% 
+    arrange(pvlu_bar)
+```
+ 
+```{r}
+model_g_bad_ratio <-
+model_g_raw %>% 
+    select(ticker_symbol,pred) %>% 
+    unnest() %>% 
+    left_join(test_data_g,by = 'ticker_symbol') %>% 
+    arrange(ticker_symbol,year,month) %>% 
+    select(ticker_symbol,pred,revenue_y) %>% 
+    # mutate_at(vars(revenue_y,pred),~exp(.)) %>% 
+    mutate(err = abs((pred-revenue_y)/revenue_y)) %>% 
+    mutate(err = percent(err)) %>% 
+    arrange(err) %>% 
+    write_excel_csv(paste(today_prefix,
+                          'ljx_500_65_pctg_pred_g.csv',
+                          sep='_')) %>% 
+    select(everything())
+model_g_bad_ratio_avg <- 
+model_g_bad_ratio %>% 
+    # ggplot(aes(x = err)) +
+    # geom_freqpoly() +
+    # labs(x = 'pred/actu-1')
+    summarise(mean(err > 0.1,na.rm = T) %>% percent)
+model_g_bad_ratio_avg
+```
+
++ 用营收季度增长率有季度因素，加入月份，错误率从85%到65%。
+
++ 目前解决30%的坏样本，还有`r pull(model_g_bad_ratio_avg)`的样本需要换方法估计。
++ 滞后一期和不滞后影响比较大。
++ 目前加入杜邦公式和`log`处理，使得25%的样本得到10%内的误差预测，这里进行说明。
+
+$$\begin{alignat}{2}
+ROE &= PM \times ATO \times LVRG \\
+\frac{\text{Net Income}}{\text{Equity}} &=
+    \frac{\text{Net Income}}{\text{Revenue}} \cdot
+    \frac{\text{Revenue}}{\text{Assets}} \cdot
+    \frac{\text{Assets}}{\text{Equity}} \\
+\end{alignat}$$
+
+并且绝对量(不是比率)的变量进行了`log`化处理。
+
+$$x:=\ln(x+1)$$
+
+# 使用季度营收为因变量
+
+```{r}
+finance_02 <- 
+    finance_01 %>% 
+    rename_all(
+          funs(
+            str_remove_all(., "\\p{Han}{1,}") %>% 
+            str_remove_all(., "_$") %>% 
+            str_to_lower()
+          )   
+    ) %>% 
+    group_by(ticker_symbol)
+# finance_02 %>% 
+#     select(ticker_symbol,year,month,revenue)
+finance_wide <- 
+    finance_02 %>% 
+    # select(year,month,revenue) %>% 
+    # filter(year == 2009,month==3)
+    select(ticker_symbol,year,month,revenue) %>% 
+    # group_by(ticker_symbol) %>% 
+    na.omit() %>% 
+    spread(ticker_symbol,revenue) %>% 
+    select_if(~sum(is.na(.))==0)  
+    # 有空值的列剔除，后期可以fill替换。
+bad <- fread('bad.csv')
+data_500 <- 
+    finance_02 %>% 
+    semi_join(bad,by = c('ticker_symbol'='bad_predict'))
+```
+
+```{r eval=F}
+vars_dict <- 
+    finance_01 %>% 
+    names() %>% 
+    as_tibble() %>% 
+    transmute(
+        chi = 
+            value %>% 
+            str_remove_all('[A-z]{1}') 
+            ,
+        eng = 
+            value %>% 
+            str_remove_all('[\\p{Han}]{1}') %>% 
+            str_remove_all('_$') %>% 
+            str_to_lower()
+    )
+vars_dict %>% 
+    write_excel_csv(paste(today_prefix,'vars_dict.csv',
+                          sep='_'))
+```
+
+## PCA
+
+```{r}
+pca_model <- 
+    finance_wide %>% 
+    select(-year,-month) %>% 
+    scale(center = TRUE, scale = TRUE) %>% 
+    as_tibble() %>% 
+    select_if(~sum(is.na(.))==0) %>% 
+    prcomp()
+pca_output <- 
+predict(pca_model) %>% 
+    as_tibble() %>% 
+    select(1) %>% 
+    bind_cols(finance_wide %>% select(year,month)) %>% 
+    write_csv(paste(today_prefix,'ljx_pca.csv',sep='_'))
+```
+    
+    Error in svd(x, nu = 0, nv = k) : infinite or missing values in 'x'
+
+当进行`scale`时，产生了`NA`。
+
+## 500只特殊股票
+
+
+```{r}
+data_500_edited <- 
+data_500 %>% 
+    mutate(
+        roe = n_income/t_sh_equity,
+        pm = n_income/t_revenue,
+        ato = t_revenue/t_assets,
+        lvrg = t_assets/t_sh_equity
+    ) %>% 
+    select(ticker_symbol,end_date,year,month,revenue,cogs,
+           t_ca,roe,pm,ato,lvrg
+           ) %>% 
+    na.omit()
+```
+
+
+```{r}
+train_test_data <- 
+    data_500_edited %>% 
+    left_join(pca_output, by = c('year','month')) %>% 
+    mutate(revenue_y = revenue) %>% 
+    mutate_at(vars(revenue:PC1),lag) %>% 
+    # summarise(mean(revenue<0,na.rm = T))
+    # mutate_at(vars(revenue,cogs,t_ca,revenue_y),
+    #           .funs = ~log(.+1)) %>%
+    mutate_at(vars(cogs,t_ca),
+              .funs = ~log(.+1)) %>%
+    filter_all(all_vars(!is.na(.))) %>%
+    filter_all(all_vars(!is.nan(.))) %>%
+    filter_all(all_vars(!is.infinite(.))) %>% 
+    ungroup()
+```
+
+```{r}
+test_data <- 
+    train_test_data %>% 
+    # distinct(year,month)
+    filter(year == 2018,month == 3)
+train_data <- 
+    train_test_data %>% 
+    setdiff(test_data)
+```
+
+```{r}
+train_data %>% 
+    names()
+```
+
+
+```{r}
+model_raw <- 
+train_data %>% 
+    group_by(ticker_symbol) %>% 
+    filter(n() > 10) %>% 
+     
+    nest() %>% 
+    mutate(mod = map(.x = data, 
+                     .f = ~lm(revenue_y ~ revenue + cogs +
+                                  t_ca + roe + pm + ato + 
+                                  lvrg + PC1+month,data=.x)
+                     # .f = ~glm(revenue_y ~ cogs + PC1,
+                     #          data = .x,
+                     #          family=Gamma(link="log"))
+                     )) %>% 
+    left_join(
+        test_data %>% 
+            group_by(ticker_symbol) %>% 
+            nest() %>% 
+            rename(test = data)
+        ,by="ticker_symbol"
+    ) %>% 
+    mutate(pred = map2(.x = mod,
+                       .y = test,
+                       .f = ~predict(object = .x,newdata = .y)))
+model_sum_table <- 
+model_raw %>% 
+    select(ticker_symbol,mod) %>% 
+    mutate(tidy = map(mod,tidy)) %>% 
+    select(ticker_symbol,tidy) %>% 
+    unnest() %>% 
+    group_by(term) %>% 
+    summarise(beta_bar = mean(estimate),beta_sd = sd(estimate),
+              pvlu_bar = mean(p.value), pvlu_sd = sd(p.value)) %>% 
+    mutate_if(is.double,accounting) %>% 
+    arrange(pvlu_bar)
+```
+ 
+```{r}
+model_bad_ratio <-
+model_raw %>% 
+    select(ticker_symbol,pred) %>% 
+    unnest() %>% 
+    left_join(test_data,by = 'ticker_symbol') %>% 
+    arrange(ticker_symbol,year,month) %>% 
+    select(ticker_symbol,pred,revenue_y) %>% 
+    # mutate_at(vars(revenue_y,pred),~exp(.)) %>% 
+    mutate(err = abs((pred-revenue_y)/revenue_y)) %>% 
+    mutate(err = percent(err)) %>% 
+    arrange(err) %>% 
+    write_excel_csv(paste(today_prefix,
+                          'ljx_500_65_pctg_pred.csv',
+                          sep='_')) %>% 
+    select(everything())
+model_bad_ratio %>% 
+    # ggplot(aes(x = err)) +
+    # geom_freqpoly() +
+    # labs(x = 'pred/actu-1')
+    summarise(mean(err > 0.1,na.rm = T) %>% percent)
+# model_bad_ratio
+```
+
++ 用绝对量加入月份，错误率从80%左右，因此使用增长率。
+
+# 350只特殊股票
+
+```{r}
+tag_350 <- 
+    model_g_bad_ratio %>% 
+    filter(err>0.1)
+```
+
+```{r}
+data_350 <- 
+    data_500_g %>% 
+    semi_join(tag_350,by = c('ticker_symbol'='ticker_symbol'))
+#     semi_join(read_excel('180719_wu_industry_tag.xlsx') %>%
+#                 select(gpdm,TYPE_NAME_CN)
+#               ,by = c('ticker_symbol'='gpdm'))
+# data_500_g %>% distinct(ticker_symbol)
+# read_excel('180719_wu_industry_tag.xlsx') %>% distinct(gpdm)
+```
+
+武神的行业标签和350只股票匹配不上，因此PCA行业指数无法应用。
+
+```{r}
+data_350_edited <- 
+data_350 %>% 
+    mutate(
+        roe = n_income/t_sh_equity
+        ,pm = n_income/t_revenue
+        ,ato = t_revenue/t_assets
+        ,lvrg = t_assets/t_sh_equity
+        ,wc = (t_ca+1)/(t_cl+1)
+        ,eps = diluted_eps
+        ,inc2cash = (n_income+1)/(n_change_in_cash+1)
+    ) %>% 
+    select(ticker_symbol,end_date,year,month,revenue,cogs,
+           t_ca,roe,pm,ato,lvrg,wc,eps,inc2cash
+           )
+```
+
+
+```{r}
+train_test_data_350 <- 
+    data_350_edited %>% 
+    left_join(pca_g_output, by = c('year','month')) %>% 
+    mutate(revenue_y = revenue) %>% 
+    mutate_at(vars(revenue:PC1),lag) %>% 
+    mutate_at(vars(cogs,t_ca),
+              .funs = ~log(.+1)) %>% 
+    filter_all(all_vars(!is.na(.))) %>%
+    filter_all(all_vars(!is.nan(.))) %>%
+    filter_all(all_vars(!is.infinite(.)))
+```
+
+```{r}
+test_data_350 <- 
+    train_test_data_350 %>% 
+    filter(year == 2018,month == 3)
+train_data_350 <- 
+    train_test_data_350 %>% 
+    setdiff(test_data_350)
+```
+
+```{r}
+train_data_350 %>% 
+    names()
+```
+
+
+```{r}
+model_350_raw <- 
+train_data_350 %>% 
+    group_by(ticker_symbol) %>% 
+    filter(n() > 10) %>% 
+     
+    nest() %>% 
+    mutate(mod = map(.x = data, 
+                     .f = ~lm(revenue_y ~ revenue + cogs +
+                                  t_ca + roe + pm + ato + 
+                                  lvrg + PC1+
+                                  wc + eps + inc2cash +
+                                  month,data=.x)
+                     # .f = ~glm(revenue_y ~ cogs + PC1,
+                     #          data = .x,
+                     #          family=Gamma(link="log"))
+                     )) %>% 
+    inner_join(
+        test_data_350 %>% 
+            group_by(ticker_symbol) %>%
+            # count()
+            nest() %>% 
+            rename(test = data)
+        ,by="ticker_symbol"
+    ) %>% 
+    # distinct(test)
+    # filter(map(test,~!is.na(.))) %>% 
+    mutate(pred = map2(.x = mod,
+                       .y = test,
+                       .f = ~predict(object = .x,newdata = .y)))
+model_350_sum_table <- 
+model_350_raw %>% 
+    select(ticker_symbol,mod) %>% 
+    mutate(tidy = map(mod,tidy)) %>% 
+    select(ticker_symbol,tidy) %>% 
+    unnest() %>% 
+    group_by(term) %>% 
+    summarise(beta_bar = mean(estimate),beta_sd = sd(estimate),
+              pvlu_bar = mean(p.value), pvlu_sd = sd(p.value)) %>% 
+    mutate_if(is.double,accounting) %>% 
+    arrange(pvlu_bar)
+```
+ 
+`inner_join`，不然产生匹配不上，`<NULL>`结构。
+
+```{r}
+model_350_bad_ratio <-
+model_350_raw %>% 
+    select(ticker_symbol,pred) %>% 
+    unnest() %>% 
+    left_join(test_data_350,by = 'ticker_symbol') %>% 
+    arrange(ticker_symbol,year,month) %>% 
+    select(ticker_symbol,pred,revenue_y) %>% 
+    # mutate_at(vars(revenue_y,pred),~exp(.)) %>% 
+    mutate(err = abs((pred-revenue_y)/revenue_y)) %>% 
+    mutate(err = percent(err)) %>% 
+    arrange(err) %>% 
+    write_excel_csv(paste(today_prefix,
+                          'ljx_350_75_pctg_pred.csv',
+                          sep='_')) %>% 
+    select(everything())
+model_350_bad_ratio_avg <- 
+model_350_bad_ratio %>% 
+    # ggplot(aes(x = err)) +
+    # geom_freqpoly() +
+    # labs(x = 'pred/actu-1')
+    summarise(mean(err > 0.1,na.rm = T) %>% percent)
+model_350_bad_ratio_avg
+```
+
+目前解决`r percent(1-pull(model_350_bad_ratio_avg))`的样本，还剩下250个样本。
+
+本次加入
+
+    wc = (t_ca+1)/(t_cl+1)
+    
+$$\begin{alignat}{2}
+\text{Working Capital} = \text{Current Asset} - \text{Current Liability} \\
+\text{Working Capital Ratio} = \frac{\text{Current Asset}}{\text{Current Liability}} \\
+\end{alignat}$$
+    
+    eps = diluted_eps
+    
+$$\begin{alignat}{2}
+\text{EPS} = \frac{\text{Net Income}}{\text{# Shares}} \\
+\end{alignat}$$
+    
+    inc2cash = (n_income+1)/(n_change_in_cash+1)
+
+$$\begin{alignat}{2}
+\text{Income to Cash Ratio} = \frac{\text{Net Income}}{\text{Net Cash Flow}} \\
+\end{alignat}$$
+
+# $\Box$ 250只特殊股票
+
+```{r}
+tag_250 <- 
+    model_350_bad_ratio %>% 
+    filter(err>0.1)
+```
+
+```{r}
+data_250 <- 
+    data_500_g %>% 
+    semi_join(tag_250,by = c('ticker_symbol'='ticker_symbol'))
+```
+
+# 全部股票预测
+
+```{r}
+data_all_edited <- 
+finance_g_02 %>% 
+    left_join(pca_output, by = c('year','month')) %>% 
+    mutate(
+        roe = n_income/t_sh_equity
+        ,pm = n_income/t_revenue
+        ,ato = t_revenue/t_assets
+        ,lvrg = t_assets/t_sh_equity
+        ,wc = (t_ca+1)/(t_cl+1)
+        ,eps = diluted_eps
+        ,inc2cash = (n_income+1)/(n_change_in_cash+1)
+    ) %>% 
+    select(ticker_symbol,end_date,year,month,revenue,cogs,
+           t_ca,roe,pm,ato,lvrg,wc,eps,inc2cash
+           )
+```
+
+```{r}
+train_test_data_all <- 
+    data_all_edited %>% 
+    left_join(pca_g_output, by = c('year','month')) %>% 
+    mutate(revenue_y = revenue) %>% 
+    mutate_at(vars(revenue:PC1),lag) %>% 
+    mutate_at(vars(cogs,t_ca),
+              .funs = ~log(.+1)) %>% 
+    filter_all(all_vars(!is.na(.))) %>%
+    filter_all(all_vars(!is.nan(.))) %>%
+    filter_all(all_vars(!is.infinite(.)))
+test_data_2018_6 <- 
+    data_all_edited %>% 
+    left_join(pca_g_output, by = c('year','month')) %>% 
+    mutate(revenue_y = revenue) %>% 
+    filter(year == 2018,month == 3) %>% 
+    mutate_at(vars(cogs,t_ca),
+              .funs = ~log(.+1)) %>%
+    filter_all(all_vars(!is.na(.))) %>%
+    filter_all(all_vars(!is.nan(.))) %>%
+    filter_all(all_vars(!is.infinite(.))) %>% 
+    ungroup()
+```
+
+```{r}
+test_data_all <- 
+    train_test_data_all %>% 
+    filter(year == 2018,month == 3)
+train_data_all <- 
+    train_test_data_all %>% 
+    setdiff(test_data_all)
+```
+
+```{r}
+model_all_raw <- 
+train_data_all %>% 
+    group_by(ticker_symbol) %>% 
+    filter(n() > 10) %>% 
+    nest() %>% 
+    mutate(mod_01 = map(.x = data, 
+                     .f = ~lm(revenue_y ~ revenue + cogs +
+                                  t_ca + roe + pm + ato + 
+                                  lvrg + PC1+
+                                  month,data=.x)
+                     )) %>% 
+                     
+    mutate(mod_02 = map(.x = data, 
+                     .f = ~lm(revenue_y ~ revenue + cogs +
+                                  t_ca + roe + pm + ato + 
+                                  lvrg + PC1+
+                                  wc + eps + inc2cash +
+                                  month,data=.x)
+                     )) %>% 
+    inner_join(
+        test_data_all %>% 
+            group_by(ticker_symbol) %>%
+            # count()
+            nest() %>% 
+            rename(test = data)
+        ,by="ticker_symbol"
+    ) %>% 
+    inner_join(
+        test_data_2018_6 %>% 
+            group_by(ticker_symbol) %>%
+            # count()
+            nest() %>% 
+            rename(test_2018_6 = data)
+        ,by="ticker_symbol"
+    ) %>% 
+    # distinct(test)
+    # filter(map(test,~!is.na(.))) %>% 
+    mutate(pred_01 = map2(.x = mod_01,
+                       .y = test,
+                       .f = ~predict(object = .x,newdata = .y))) %>%
+    mutate(pred_02 = map2(.x = mod_02,
+                       .y = test,
+                       .f = ~predict(object = .x,newdata = .y))) %>%
+    mutate(pred_01_2018_06 = map2(.x = mod_01,
+                       .y = test_2018_6,
+                       .f = ~predict(object = .x,newdata = .y))) %>% 
+    mutate(pred_02_2018_06 = map2(.x = mod_02,
+                       .y = test_2018_6,
+                       .f = ~predict(object = .x,newdata = .y)))
+```
+ 
+`inner_join`，不然产生匹配不上，`<NULL>`结构。
+
+```{r}
+model_all_bad_ratio <-
+model_all_raw %>% 
+    select(ticker_symbol,pred_01,pred_02
+           ,pred_01_2018_06,pred_02_2018_06) %>% 
+    unnest() %>% 
+    
+    left_join(
+        finance_02 %>% 
+            filter(year == 2018,month == 3) %>% 
+            select(ticker_symbol,revenue) %>% 
+            rename(revenue_2018_03 = revenue)
+                  ,by = 'ticker_symbol') %>% 
+    left_join(
+        finance_02 %>% 
+            filter(year == 2017,month == 12) %>% 
+            select(ticker_symbol,revenue) %>% 
+            rename(revenue_2017_12 = revenue)
+                  ,by = 'ticker_symbol') %>% 
+    left_join(test_data_all %>% 
+                  select(ticker_symbol,revenue_y)
+                  ,by = 'ticker_symbol') %>% 
+    arrange(ticker_symbol) %>% 
+    mutate(err_01 = abs((pred_01-revenue_y)/revenue_y)
+           ,err_02 = abs((pred_02-revenue_y)/revenue_y)) %>% 
+    mutate_at(vars(err_01,err_02),percent) %>% 
+    arrange(err_01) %>% 
+    mutate(
+        pred_01_value = pred_01 * revenue_2017_12
+        ,pred_02_value = pred_02 * revenue_2017_12
+        ,revenue_y_value = revenue_y * revenue_2017_12
+        ,pred_01_2018_06_value = pred_01_2018_06 * revenue_2018_03
+        ,pred_02_2018_06_value = pred_02_2018_06 * revenue_2018_03
+    ) %>% 
+    write_excel_csv(paste(today_prefix,
+                          'ljx_all_pctg_pred.csv',
+                          sep='_')) %>% 
+    select(everything())
+model_all_bad_ratio
+```
+
++ `ticker_symbol`: 股票ID
++ `pred_01`: 模型一预测季度增长率，2018年第一季度
++ `pred_02`: 模型二预测季度增长率，2018年第一季度
++ `pred_01_2018_06`: 模型二预测季度增长率，2018年第二季度
++ `pred_02_2018_06`: 模型二预测季度增长率，2018年第二季度
++ `revenue_2018_03`: 2018年第一季度真实营收
++ `revenue_2017_12`: 2017年第四季度真实营收
++ `revenue_y`: 2018年第一季度真实季度增长率
++ `err_01`: 模型一预测误差率
++ `err_02`: 模型二预测误差率
++ `pred_01_value`: 模型一预测季度营收绝对量，2018年第一季度
++ `pred_02_value`: 模型二预测季度营收绝对量，2018年第一季度
++ `pred_01_2018_06_value`: 模型一预测季度营收绝对量，2018年第二季度
++ `pred_02_2018_06_value`: 模型一预测季度营收绝对量，2018年第二季度
