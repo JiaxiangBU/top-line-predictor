@@ -13,3 +13,4 @@
     1. 增加 top-line 引用
     1. 增加名字
     1. 增加 CONTRIBUTING 实现方式
+    1. 增加 Github 介绍
