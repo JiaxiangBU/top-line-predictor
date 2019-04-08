@@ -1,0 +1,16 @@
+```{r}
+source(here::here("R/load.R"))
+```
+
+```{r}
+dir_info(here::here("src"), recursive = T) %>% 
+    as_tibble() %>% 
+    arrange(desc(size)) %>% 
+    select(path, size) %>% 
+    
+```
+
+```{r}
+usethis::use_git_ignore("../src/New_FDDC_financial_data_20180524")
+```
+
