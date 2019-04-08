@@ -3,7 +3,7 @@ source(here::here("R/load.R"))
 ```
 
 ```{r}
-dir_info(here::here("analysis"), recursive = T) %>% 
+dir_info(here::here("src/02_data_source"), recursive = T) %>% 
     as_tibble() %>% 
     arrange(desc(size)) %>% 
     select(path, size) %>% 
