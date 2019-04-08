@@ -22,7 +22,8 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 1.  [ ] 增加模型的信息
 2.  [ ] 百度云相关预测文档
 3.  [ ] 增加 coc
-4.  [ ] 增加 contributor 解释
+4.  [x] 增加 contributor 解释
+5.  [ ] 增加证书
 
 <div id="refs" class="references">
 

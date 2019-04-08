@@ -9,6 +9,7 @@
     1. 增加名次、项目名称
     1. 增加证书
     1. 增加 Todos
+        1. update todos
     1. 增加 top-line 引用
     1. 增加名字
     1. 增加 CONTRIBUTING 实现方式

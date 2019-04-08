@@ -31,5 +31,5 @@ knitr::opts_chunk$set(
 1. [ ] 增加模型的信息
 1. [ ] 百度云相关预测文档
 1. [ ] 增加 coc
-1. [ ] 增加 contributor 解释
+1. [x] 增加 contributor 解释
 1. [ ] 增加证书
