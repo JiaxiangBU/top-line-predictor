@@ -51,7 +51,7 @@ this project, you agree to abide by its terms.
 
 <h6 align="center">
 
-CC-BY-4.0 © [Ligong Liu;Ruiqi Wu;Jiaxiang LI](LICENSE.md)
+CC-BY-4.0 © [Ligong Liu;Ruiqi Wu;Jiaxiang Li](LICENSE.md)
 
 </h6>
 
