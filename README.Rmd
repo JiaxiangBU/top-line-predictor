@@ -1,4 +1,7 @@
 ---
+title: "FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测"
+author: "刘立功, 武睿琦, 李家翔"
+date: "`r Sys.Date()`"
 output: github_document
 ---
 
@@ -12,3 +15,4 @@ knitr::opts_chunk$set(
 ```
 # top-line-predictor
 
+参赛队伍名称为 *超级数据挖掘机*。

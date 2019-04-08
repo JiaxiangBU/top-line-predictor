@@ -3,3 +3,6 @@
 1. add r proj and news
 1. add readme
 1. add CONTRIBUTING.md
+1. update readme
+    1. 更新 YAML
+    1. 增加参赛信息
