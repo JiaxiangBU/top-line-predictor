@@ -13,10 +13,16 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
     1.  top line，得名于收入表，位于开头，主要记录上市公司财务报表中的营业收入(Boyte-White 2018)。
     2.  predictor，预测因子的意思。
 
+## contributions
+
+参考 [CONTRIBUTING.md](.github/CONTRIBUTING.md)，建立 Pull Request 增加名字。
+
 ## To-dos
 
 1.  [ ] 增加模型的信息
 2.  [ ] 百度云相关预测文档
+3.  [ ] 增加 coc
+4.  [ ] 增加 contributor 解释
 
 <div id="refs" class="references">
 
