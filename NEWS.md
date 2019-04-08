@@ -2,3 +2,4 @@
 
 1. add r proj and news
 1. add readme
+1. add CONTRIBUTING.md
