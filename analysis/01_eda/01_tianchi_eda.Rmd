@@ -1,0 +1,276 @@
+---
+title: "数据反馈日志"
+author: "李家翔"
+date: "`r Sys.Date()`"
+bibliography: add.bib
+output: 
+  html_document:
+    code_folding: hide
+    df_print: default
+    highlight: tango
+    number_sections: yes
+    theme: united
+    toc: yes
+    toc_float: yes
+link-citations: true
+---
+
+# 前言
+
+## 主要链接
+
++ [比赛链接](https://tianchi.aliyun.com/competition/introduction.htm?spm=5176.100066.0.0.74e133af9f55aY&raceId=231660)
+
+## 计划
+
+* [关于财务数据的两个问题](https://tianchi.aliyun.com/forum/new_articleDetail.html?spm=5176.8366600.0.0.4034311f8aoLVN&raceId=231660&postsId=5282#pages%3D1)
+
+## 新增
+
++ 4 异常值
++ 3.1 武神数据(EDA)
++ 文件展示
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, cache = T)
+library(tidyverse)
+library(knitr)
+library(formattable)
+library(skimr)
+library(DT)
+library(readxl)
+library(xgboost)
+library(SmartEDA)
+library(DT)
+library(tidyquant)
+library(pryr)
+get_path01 <- function(x){
+  file.path(getwd(),"Question01",x)}
+get_path02 <- function(x){
+  file.path(getwd(),"Question01","New_FDDC_financial_data_20180524",x)}
+get_path03 <- function(x){
+  file.path(getwd(),"Question01","New_FDDC_financial_data_20180524",
+            "financial data",x)}
+get_path04 <- function(x){
+  file.path(getwd(),"ana_data",x)}
+theme_ilo <- function(){
+    theme_minimal() + 
+    theme(
+    # text = element_text(family = "Bookman", color = "gray25"),
+    plot.subtitle = element_text(size = 9),
+    plot.caption = element_text(color = "gray30"),
+    # plot.background = element_rect(fill = "gray95"),
+    plot.margin = unit(c(5, 10, 5, 10), units = "mm"),
+    axis.title.x = element_text(size=12,face = "bold"),
+    axis.title.y = element_text(size=12,face = "bold"),
+    # x和y的命名，要加粗，ppt才好看
+    axis.text.x = element_text(size=7, angle = 70, hjust = 1),
+    # 控制axis字体大小，7号大小最好
+    axis.text.y = element_text(size=7),
+    legend.title=element_blank()
+    )
+}
+```
+
+
+# 文件展示
+ 
+```{r}
+FDDC_financial_submit_20180524 <- 
+  read_csv(get_path01("FDDC_financial_submit_20180524.csv"), 
+    col_names = FALSE)
+FDDC_financial_submit_20180524
+```
+
+预测`r nrow(FDDC_financial_submit_20180524)`个股票的营收。
+
+
+```{r}
+read_lines(get_path03("Balance Sheet.xls"),n_max = 5)
+```
+
+存在编码问题。
+
+```{r message=FALSE, warning=FALSE}
+read_excel(
+  get_path02("Company Operation.xls"),
+  # n_max = 100,
+  skip = 1,
+  sheet = "CN"
+) %>% 
+  rename(col = `指标`) %>% 
+  distinct(`col`) %>% 
+  filter(col %in% str_subset(col,"机场|航空")) %>% 
+  mutate(col = str_extract(col,"^\\p{Han}{2,}")) %>% 
+  distinct(col)
+```
+
+六个目标
+
+# EDA
+
+## 武神数据
+
++ 数据分别从balance sheet,cash flow statement,income statement提取机场和航空公司一共6家公司的数据，然后合并得来。
++ 合并时按照`TICKER_SYMBOL`_股票代码,`END_DATE`_截止日期进行合并的。
+
+```{r message=FALSE, warning=FALSE, cache=T}
+finacial_data_airport_airline <- read_csv(get_path04("20180613_wu_finacial_data_airport_airline.csv"))
+# read_lines(get_path04("20180613_wu_finacial_data_airport_airline.csv"),n_max = 2)
+```
+
+这里的导出注意`utf-8`格式[^utf-8]。
+
+[^utf-8]:
+    否则会出现报错。
+    
+    Error in make.names(x) : invalid multibyte string 1
+    
+```{r}
+finacial_data_airport_airline_edit <- 
+finacial_data_airport_airline %>% 
+    select(-X1) %>%
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )
+  )
+```
+
+这里使用`REVENUE_营业收入`作为y变量[^y变量]。
+
+[^y变量]:
+    ```{r}
+    finacial_data_airport_airline %>% names() %>% 
+        str_subset("收入")
+    ```
+
+
+### Overview
+
+EDA 主要参考 
+[SmartEDA 包 测评](https://jiaxiangli.netlify.com/2018/05/smarteda/)和
+[Tidyverse使用技巧](https://jiaxiangli.netlify.com/2018/02/dplyr/)。
+
+```{r}
+ExpData(data=finacial_data_airport_airline_edit,type=1) %>% datatable()
+ExpData(data=finacial_data_airport_airline_edit,type=2) %>% datatable()
+```
+
+### 连续变量
+
+#### table
+
+```{r}
+ExpNumStat(finacial_data_airport_airline_edit,by="A",gp="revenue",Qnt=seq(0,1,0.1),MesofShape=2,Outlier=TRUE,round=2) %>% 
+    mutate_at(vars(Per_of_Missing),percent) %>% datatable()
+```
+
++ `Vname` – Variable name - 变量名称
++ `Group` – Target variable - 
+    + `TN` – Total sample (inculded NA observations) - 样本总数
++ `nNeg` – Total negative observations - 负样本数量
++ `nZero` – Total zero observations - 零值数量
++ `nPos` – Total positive observations - 正样本数量
++ `NegInf` – Negative infinite count - 负无穷大极值
++ `PosInf` – Positive infinite count - 正无穷大极值
++ `NA_value` – Not Applicable count - 缺失值
++ `Per_of_Missing` – Percentage of missings - 缺失率
++ `Min` – minimum value - 最小值
++ `Max` – maximum value - 最大值
++ `Mean` – average value - 平均值
++ `Median` – median value - 中位数
++ `SD` – Standard deviation - 总体标准差
++ `CV` – coefficient of variations (SD/mean)*100 - z score
++ `IQR` – Inter quartile range - 四分位距 $QD = \frac{Q3-Q1}{2}$
+    + `Qnt` – Specified quantiles - 百分位点
++ `MesofShape` – Skewness and Kurtosis - 偏度和峰度
++ `Outlier` – Number of outliers - 异常值数量
++ `Cor` – Correlation b/w target and independent variables - 自变量和因变量相关性
+
+#### plot
+
+```{r}
+ExpNumViz(finacial_data_airport_airline_edit,gp=NULL,nlim=10,Page=c(2,2),sample=NULL)
+```
+
++ `nlim`: 少于10个样本不画图
++ `sample`: 随机选择变量进行展示，`NULL`表示全部展示
+
+```{r}
+ExpNumViz(finacial_data_airport_airline_edit,gp="revenue",nlim=4,fname=NULL,col=NULL,Page=c(2,2))
+```
+
+### 分类变量 
+
+#### table
+
+```{r}
+ExpCTable(finacial_data_airport_airline_edit,Target="revenue",margin=1,clim=10,nlim=NULL,round=2,bin=4,per=F) %>% datatable()
+```
+
+#### plot
+
+```{r}
+ExpCatViz(finacial_data_airport_airline_edit,gp=NULL,fname=NULL,clim=10,col=NULL,margin=2,Page = c(2,1))
+```
+
+# 异常值
+
+```{r}
+# library(readr)
+# finacial_all <- read_csv("ana_data/20180619_wu_finacial_all.csv", 
+#     col_names = FALSE)
+finacial_all <- read_excel("ana_data/20180619_wu_finacial_all.xlsx")
+```
+
+```{r}
+object_size(finacial_all)
+```
+
+```{r}
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+  qnt <- quantile(x, probs=c(.25, .75), na.rm = na.rm, ...)
+  H <- 1.5 * IQR(x, na.rm = na.rm)
+  y <- x
+  y[x < (qnt[1] - H)] <- NA
+  y[x > (qnt[2] + H)] <- NA
+  y
+}
+```
+
+
+```{r}
+finacial_all_edited <- 
+finacial_all %>% 
+    rename_all(
+      funs(
+        str_remove_all(., "\\p{Han}{1,}") %>% 
+        str_remove_all(., "_$") %>% 
+        str_to_lower()
+      )
+  ) %>% 
+    select(ticker_symbol,end_date,revenue) %>% 
+    group_by(ticker_symbol) %>% 
+    arrange(end_date) %>% 
+    mutate(revenue_diff = revenue - lag(revenue,4))
+finacial_all_edited %>% 
+    group_by(ticker_symbol) %>% 
+    summarise(n = n()) %>% 
+    arrange(desc(n)) %>% datatable()
+
+finacial_all_edited %>% 
+    group_by(ticker_symbol) %>% 
+    filter(
+        revenue_diff < quantile(revenue_diff,probs = 0.25,na.rm=T) - 3 * IQR(revenue_diff,na.rm=T) |
+        revenue_diff > quantile(revenue_diff,probs = 0.75,na.rm=T) + 3 * IQR(revenue_diff,na.rm=T)
+    ) %>% 
+    write_csv(get_path04("20180619_li_outiler_list.csv")) %>% 
+    group_by(ticker_symbol) %>% 
+    summarise(n = n()) %>% 
+    arrange(desc(n)) %>% datatable()
+```
+
+这里使用的是3倍的IQR的条件，比箱形图要求严格。
