@@ -1,0 +1,21 @@
+rm(list = ls())
+library(data.table)
+library(bit64)
+library(forecast)
+library(purrr)
+
+finance<- fread('F:/数据和统计模型练习/FDDC2018/小武文件/finance.csv')
+revenue<- finance[,c(2,4,5,6,126,255:261)]
+head(revenue)
+
+
+qye = revenue[TICKER_SYMBOL == 818,]
+plot(ts(qye$REVENUE_营业收入))
+
+qye
+
+qye_rev = ts(log(qye$REVENUE_营业收入[1:36]), frequency = 4)
+qye_rev
+rev_arima <- auto.arima(qye_rev, xreg = qye[1:36]$tb_abs)
+pred = forecast(rev_arima, 1, xreg = qye[37]$tb_abs);pred
+bb = exp(pred$mean); bb

@@ -4,6 +4,7 @@
 1. add EDA related files
 1. add 中间数据文件
 1. add pca 分析
+1. add 生成数据和预测文件
 
 ### 2019-04-08 10:42:55
 
