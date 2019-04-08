@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
   comment = "#>"
 )
 ```
-# top-line-predictor
+## top-line-predictor
 
 1. 参赛队伍名称为 *超级数据挖掘机*。
 1. 最后成绩为 150/2724, 前5.5%，见[证书](refs/certificate.pdf)

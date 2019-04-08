@@ -5,7 +5,7 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# top-line-predictor
+## top-line-predictor
 
 1.  参赛队伍名称为 *超级数据挖掘机*。
 2.  最后成绩为 150/2724, 前5.5%，见[证书](refs/certificate.pdf)

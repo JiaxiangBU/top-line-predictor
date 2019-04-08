@@ -2,6 +2,7 @@
 
 1. 加入 license
 1. 加入 coc
+1. update readme
 
 ### 2019-04-08 12:39:12
 
