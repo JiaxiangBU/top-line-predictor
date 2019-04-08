@@ -25,6 +25,7 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 4.  [x] 增加 contributor 解释
 5.  [ ] 增加证书
 6.  [x] 发博客
+7.  [ ] 整合 Mac - 天池的文档
 
 <div id="refs" class="references">
 
