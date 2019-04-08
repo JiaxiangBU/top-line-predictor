@@ -3,6 +3,7 @@ title: "FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测"
 author: "刘立功, 武睿琦, 李家翔"
 date: "`r Sys.Date()`"
 output: github_document
+bibliography: refs/add.bib
 ---
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
@@ -18,7 +19,7 @@ knitr::opts_chunk$set(
 1. 参赛队伍名称为 *超级数据挖掘机*。
 1. 最后成绩为 150/2724, 前5.5%，见[证书](refs/certificate.pdf)
 1. 项目名称解释
-    1. top line，得名于收入表，位于开头，主要记录上市公司财务报表中的营业收入。
+    1. top line，得名于收入表，位于开头，主要记录上市公司财务报表中的营业收入[@White2018]。
     1. predictor，预测因子的意思。
 
 ## To-dos
