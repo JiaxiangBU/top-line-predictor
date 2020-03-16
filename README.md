@@ -57,7 +57,7 @@ Li](https://github.com/JiaxiangBU/top-line-predictor/blob/master/LICENSE.md)
 
 </h6>
 
-## 参考
+## 参考文献
 
 <div id="refs" class="references">
 
