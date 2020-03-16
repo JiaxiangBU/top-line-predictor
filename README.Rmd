@@ -39,33 +39,8 @@ knitr::opts_chunk$set(
 
 参考 [CONTRIBUTING.md](.github/CONTRIBUTING.md)，建立 Pull Request 增加名字。
 
------
+`r add2pkg::add_disclaimer("Ligong Liu;Ruiqi Wu;Jiaxiang Li")`
 
-<h4 align="center">
-
-**Code of Conduct**
-
-</h4>
-
-<h6 align="center">
-
-Please note that the 'top-line-predictor' project is released with a
-[Contributor Code of Conduct](CODE_OF_CONDUCT.md).
-By contributing to this project, you agree to abide by its terms.
-
-</h6>
-
-<h4 align="center">
-
-**License**
-
-</h4>
-
-<h6 align="center">
-
-CC-BY-4.0 © [Ligong Liu;Ruiqi Wu;Jiaxiang Li](LICENSE.md)
-
-</h6>
 
 
 ## 参考 {-}

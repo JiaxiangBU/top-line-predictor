@@ -29,8 +29,6 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 
 参考 [CONTRIBUTING.md](.github/CONTRIBUTING.md)，建立 Pull Request 增加名字。
 
------
-
 <h4 align="center">
 
 **Code of Conduct**
@@ -39,9 +37,10 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 
 <h6 align="center">
 
-Please note that the ‘top-line-predictor’ project is released with a
-[Contributor Code of Conduct](CODE_OF_CONDUCT.md). By contributing to
-this project, you agree to abide by its terms.
+Please note that the `top-line-predictor` project is released with a
+[Contributor Code of
+Conduct](https://github.com/JiaxiangBU/top-line-predictor/blob/master/CODE_OF_CONDUCT.md).<br>By
+contributing to this project, you agree to abide by its terms.
 
 </h6>
 
@@ -53,7 +52,8 @@ this project, you agree to abide by its terms.
 
 <h6 align="center">
 
-CC-BY-4.0 © [Ligong Liu;Ruiqi Wu;Jiaxiang Li](LICENSE.md)
+MIT © [Ligong Liu;Ruiqi Wu;Jiaxiang
+Li](https://github.com/JiaxiangBU/top-line-predictor/blob/master/LICENSE.md)
 
 </h6>
 
