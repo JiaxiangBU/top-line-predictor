@@ -1,7 +1,7 @@
 FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 ================
 刘立功, 武睿琦, 李家翔
-2019-04-08
+2020-03-16
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
@@ -22,6 +22,8 @@ FDDC2018金融算法挑战赛01 - A股上市公司季度营收预测
 3.  [x] 增加 contributor 解释
 4.  [x] 增加证书
 5.  [x] 发博客
+6.  [ ] 这里有多加股票，并且都是时间序列，所以算 longitudinal data，这里可以采用 LSTM 进行训练，参考 [6
+    神经网络应用](https://jiaxiangbu.github.io/learn_longitudinal_analysis/analysis/introduction-panel-data.html)
 
 ## Contributions
 
